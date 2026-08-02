@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIST Alarm Masası</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0B0E11">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BIST Alarm">
+<style>
+  :root{
+    --bg:#0B0E11;
+    --panel:#12161C;
+    --panel2:#171C23;
+    --line:#232A33;
+    --text:#E8EAED;
+    --muted:#7C8794;
+    --green:#00D68F;
+    --red:#FF4757;
+    --amber:#FFB020;
+    --blue:#3B82F6;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
+    --sans: -apple-system, 'Inter', 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans); padding-bottom:60px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  header{
+    padding:18px 16px 14px; border-bottom:1px solid var(--line);
+    position:sticky; top:0; background:var(--bg); z-index:20;
+  }
+  .brand{font-family:var(--mono); font-size:13px; letter-spacing:.12em; color:var(--muted); text-transform:uppercase;}
+  h1{font-size:20px; margin:4px 0 0; font-weight:700;}
+  .ticker-strip{
+    overflow:hidden; white-space:nowrap; margin-top:12px;
+    border:1px solid var(--line); border-radius:8px; background:var(--panel);
+  }
+  .ticker-track{display:inline-block; padding:8px 0; animation: scroll 22s linear infinite;}
+  .ticker-strip:hover .ticker-track{animation-play-state:paused;}
+  @keyframes scroll{ from{transform:translateX(0);} to{transform:translateX(-50%);} }
+  .tick-item{display:inline-block; padding:0 18px; font-family:var(--mono); font-size:13px; border-right:1px solid var(--line);}
+  .tick-item .sym{color:var(--muted); margin-right:6px;}
+  .status-bar{
+    display:flex; gap:8px; align-items:center; margin-top:12px; flex-wrap:wrap;
+  }
+  button{
+    font-family:var(--sans); border:1px solid var(--line); background:var(--panel2);
+    color:var(--text); padding:9px 14px; border-radius:7px; font-size:13px; cursor:pointer;
+    font-weight:600;
+  }
+  button:active{transform:scale(.97);}
+  button.primary{background:var(--green); color:#04140D; border-color:var(--green);}
+  button.ghost{background:transparent;}
+  #lastUpdate{font-size:12px; color:var(--muted); font-family:var(--mono);}
+
+  .tabs{ display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .tab-btn{
+    display:flex; align-items:center; gap:6px; padding:7px 12px; border-radius:20px;
+    border:1px solid var(--line); background:var(--panel2); font-size:12px; font-weight:600; cursor:pointer;
+  }
+  .tab-btn .dot{ width:8px; height:8px; border-radius:50%; }
+  .tab-btn.active{ background:var(--panel); border-color:var(--text); }
+  .tab-btn .count{ color:var(--muted); font-family:var(--mono); font-weight:400; }
+
+  main{padding:16px;}
+  .notice{
+    background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--amber);
+    padding:10px 12px; border-radius:6px; font-size:12.5px; color:var(--muted); margin-bottom:16px; line-height:1.5;
+  }
+  .add-stock-bar{ display:flex; gap:8px; margin-bottom:16px; align-items:center; }
+  .add-stock-bar input{flex:1;}
+  .add-stock-bar input, .table-wrap input[type=text]{
+    background:var(--bg); border:1px solid var(--line); color:var(--text);
+    padding:9px 10px; border-radius:6px; font-size:13px; font-family:var(--sans);
+  }
+  .list-label{ font-size:12px; color:var(--muted); }
+  .empty{padding:40px 10px; text-align:center; color:var(--muted); font-size:13px;}
+
+  .table-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
+  table.grid{ border-collapse:collapse; width:100%; font-family:var(--mono); font-size:12.5px; }
+  table.grid th{
+    position:sticky; top:0; background:var(--panel2); border-bottom:1px solid var(--line);
+    padding:9px 8px; text-align:left; color:var(--muted); font-size:10.5px; letter-spacing:.04em; white-space:nowrap;
+  }
+  table.grid td{ padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  table.grid tr:last-child td{ border-bottom:none; }
+  table.grid td.sym-cell{ font-weight:700; font-family:var(--sans); position:sticky; left:0; background:var(--bg); }
+  table.grid input[type=number]{
+    width:78px; background:transparent; border:1px solid transparent; color:var(--text);
+    padding:5px 6px; border-radius:5px; font-family:var(--mono); font-size:12.5px;
+  }
+  table.grid input[type=number]:hover{ border-color:var(--line); }
+  table.grid input[type=number]:focus{ border-color:var(--green); outline:none; background:var(--panel2); }
+  table.grid input[type=number].triggered{ color:var(--amber); font-weight:700; border-color:var(--amber); }
+  table.grid input[type=text].note-input{
+    width:220px; font-family:var(--sans); color:var(--muted);
+  }
+  table.grid input[type=text].note-input:focus{ color:var(--text); border-color:var(--green); outline:none; background:var(--panel2); }
+  .price-cell{ font-weight:700; }
+  .price-cell.up{ color:var(--green); } .price-cell.down{ color:var(--red); }
+  .del-btn{ color:var(--red); background:transparent; border:none; font-size:15px; padding:2px 6px; cursor:pointer; }
+  footer{
+    position:fixed; bottom:0; left:0; right:0; padding:10px 16px;
+    background:linear-gradient(to top, var(--bg) 70%, transparent); font-size:11px; color:var(--muted); text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">Kişisel Terminal</div>
+  <h1>BIST Alarm Masası</h1>
+  <div class="ticker-strip" id="tickerStrip" style="display:none;">
+    <div class="ticker-track" id="tickerTrack"></div>
+  </div>
+  <div class="status-bar">
+    <button class="primary" id="refreshBtn">Fiyatları Güncelle</button>
+    <button class="ghost" id="notifBtn">Bildirimlere İzin Ver</button>
+    <span id="lastUpdate">henüz güncellenmedi</span>
+  </div>
+  <div class="tabs" id="tabs"></div>
+</header>
+
+<main>
+  <div class="notice">
+    ⚠️ Fiyatlar ücretsiz bir kaynaktan (borsajs) geliyor, yatırım tavsiyesi değildir. STOP sütunu fiyat <b>altına inince</b>, diğer tüm sütunlar (ALARM1/2, DİRENÇ1/2, HEDEF1/2, SATIŞ) fiyat <b>üstüne çıkınca</b> uyarır. Bir hücreye fiyat yazman yeterli — ayrıca "alarm ekle" yapmana gerek yok. Bildirimler yalnızca bu sayfa açıkken çalışır; sayfa açıkken 60 saniyede bir <b>tüm listelerdeki</b> hisseler otomatik kontrol edilir (yalnızca o an açık olan liste değil).
+  </div>
+
+  <div class="add-stock-bar">
+    <span class="list-label" id="activeListLabel"></span>
+    <input type="text" id="newSymbol" placeholder="Hisse kodu ekle (örn: THYAO)" autocapitalize="characters">
+    <button class="primary" id="addStockBtn">Ekle</button>
+  </div>
+
+  <div class="table-wrap" id="tableWrap" style="display:none;">
+    <table class="grid" id="grid"></table>
+  </div>
+  <div class="empty" id="emptyState">Bu listede henüz hisse yok. Yukarıdan bir hisse kodu ekleyerek başla.</div>
+</main>
+
+<footer>Veriler gecikmeli olabilir · Yatırım tavsiyesi değildir</footer>
+
+<script>
+const COLS = ['stop','alarm1','alarm2','direnc1','direnc2','hedef1','hedef2','satis'];
+const HEADERS = {stop:'STOP', alarm1:'ALARM1', alarm2:'ALARM2', direnc1:'DİRENÇ1', direnc2:'DİRENÇ2', hedef1:'HEDEF1', hedef2:'HEDEF2', satis:'SATIŞ'};
+const DIRECTIONS = {stop:'aşağı', alarm1:'yukarı', alarm2:'yukarı', direnc1:'yukarı', direnc2:'yukarı', hedef1:'yukarı', hedef2:'yukarı', satis:'yukarı'};
+
+const LISTS = [
+  {key:'kirmizi', label:'KIRMIZI', color:'var(--red)'},
+  {key:'yesil',   label:'YEŞİL',   color:'var(--green)'},
+  {key:'sari',    label:'SARI',    color:'var(--amber)'},
+  {key:'mavi',    label:'MAVİ',    color:'var(--blue)'},
+  {key:'takip',   label:'TAKİP',   color:'var(--muted)'}
+];
+
+let data = { activeList: 'takip', lists: {} };
+LISTS.forEach(l => data.lists[l.key] = []);
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+function emptyLevels(){
+  const l = {};
+  COLS.forEach(c=> l[c] = {price:'', triggered:false});
+  return l;
+}
+
+function migrateOldAlarmStock(old){
+  const levels = emptyLevels();
+  const notes = [];
+  const typeMap = {stop:'stop', tetik:'alarm1', direnc1:'direnc1', direnc2:'direnc2', hedef1:'hedef1', hedef2:'hedef2', sat:'satis'};
+  (old.alarms || []).forEach(a=>{
+    const key = typeMap[a.type];
+    if(key && a.price !== '' && a.price != null && levels[key].price === ''){
+      levels[key] = {price:a.price, triggered:!!a.triggered};
+    }
+    if(a.note) notes.push(a.note);
+  });
+  return {
+    id: old.id || uid(), symbol: old.symbol,
+    lastPrice: old.lastPrice ?? null, prevPrice: old.prevPrice ?? null,
+    fetchError:false, loading:false, note: notes.join(' | '), levels
+  };
+}
+
+async function loadData(){
+  try{
+    const raw = localStorage.getItem('stocks-v3');
+    if(raw){
+      const parsed = JSON.parse(raw);
+      data.activeList = parsed.activeList || 'takip';
+      LISTS.forEach(l => data.lists[l.key] = parsed.lists?.[l.key] || []);
+    } else {
+      // eski sürümlerden göç
+      const v2 = localStorage.getItem('stocks-v2');
+      if(v2){
+        data.lists.takip = JSON.parse(v2);
+      } else {
+        const v1 = localStorage.getItem('stocks-v1');
+        if(v1){ data.lists.takip = JSON.parse(v1).map(migrateOldAlarmStock); }
+      }
+      saveData();
+    }
+  }catch(e){ /* varsayılan boş yapı kalır */ }
+  render();
+}
+
+async function saveData(){
+  try{ localStorage.setItem('stocks-v3', JSON.stringify(data)); }
+  catch(e){ console.error('Kayıt başarısız', e); }
+}
+
+function currentStocks(){ return data.lists[data.activeList]; }
+function allStocksFlat(){ return LISTS.flatMap(l => data.lists[l.key]); }
+
+function setActiveList(key){
+  data.activeList = key;
+  pendingDelete = null;
+  saveData(); render();
+}
+
+let pendingDelete = null;
+
+async function addStock(symbol){
+  symbol = symbol.trim().toUpperCase();
+  if(!symbol) return;
+  const list = currentStocks();
+  if(list.find(s=>s.symbol===symbol)){ alert('Bu hisse zaten bu listede.'); return; }
+  const stock = {id:uid(), symbol, lastPrice:null, prevPrice:null, loading:true, fetchError:false, note:'', levels:emptyLevels()};
+  list.push(stock);
+  saveData(); render();
+  try{
+    stock.lastPrice = await fetchPrice(symbol);
+    stock.fetchError = false;
+  }catch(e){
+    console.error(`${symbol} için fiyat alınamadı`, e);
+    stock.fetchError = true;
+  }
+  stock.loading = false;
+  saveData(); render();
+}
+
+function removeStock(id){ pendingDelete = id; render(); }
+function confirmRemoveStock(id){
+  data.lists[data.activeList] = currentStocks().filter(s=>s.id!==id);
+  pendingDelete = null;
+  saveData(); render();
+}
+function cancelRemoveStock(){ pendingDelete = null; render(); }
+
+function updateLevelPrice(stockId, key, value){
+  const s = currentStocks().find(x=>x.id===stockId);
+  s.levels[key].price = value;
+  s.levels[key].triggered = false;
+  saveData();
+}
+function updateNote(stockId, value){
+  const s = currentStocks().find(x=>x.id===stockId);
+  s.note = value;
+  saveData();
+}
+
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_, reject)=>setTimeout(()=>reject(new Error('Zaman aşımı')), ms))
+  ]);
+}
+
+async function fetchPrice(symbol){
+  const res = await withTimeout(fetch(`https://borsajs-showcase.web.app/api/ticker/${symbol.toUpperCase()}`), 10000);
+  if(!res.ok) throw new Error('İstek başarısız: ' + res.status);
+  const d = await res.json();
+  if(d?.last == null) throw new Error('Fiyat alanı okunamadı');
+  return d.last;
+}
+
+function notify(title, body){
+  if('Notification' in window && Notification.permission === 'granted'){
+    new Notification(title, {body});
+  }
+}
+
+function checkAlarms(stock, listLabel){
+  if(stock.lastPrice == null) return;
+  COLS.forEach(key=>{
+    const lvl = stock.levels[key];
+    if(lvl.triggered || lvl.price === '' || lvl.price == null) return;
+    const target = parseFloat(lvl.price);
+    if(isNaN(target)) return;
+    const dir = DIRECTIONS[key];
+    const hit = (dir==='yukarı' && stock.lastPrice >= target) || (dir==='aşağı' && stock.lastPrice <= target);
+    if(hit){
+      lvl.triggered = true;
+      const noteText = stock.note ? ` - ${stock.note}` : '';
+      notify(`${stock.symbol} · ${HEADERS[key]} · ${listLabel}`, `FİYAT:${target}${noteText}`);
+    }
+  });
+}
+
+async function refreshAll(){
+  const btn = document.getElementById('refreshBtn');
+  btn.textContent = 'Güncelleniyor...'; btn.disabled = true;
+
+  // aynı sembolü birden fazla listede tekrar tekrar çekmemek için tekilleştir
+  const bySymbol = {};
+  LISTS.forEach(l=>{
+    data.lists[l.key].forEach(s=>{
+      if(!bySymbol[s.symbol]) bySymbol[s.symbol] = [];
+      bySymbol[s.symbol].push({stock:s, listLabel:l.label});
+    });
+  });
+
+  for(const symbol of Object.keys(bySymbol)){
+    try{
+      const price = await fetchPrice(symbol);
+      bySymbol[symbol].forEach(({stock, listLabel})=>{
+        stock.prevPrice = stock.lastPrice;
+        stock.lastPrice = price;
+        stock.fetchError = false;
+        checkAlarms(stock, listLabel);
+      });
+    }catch(e){
+      console.error(`${symbol} için fiyat alınamadı`, e);
+      bySymbol[symbol].forEach(({stock})=> stock.fetchError = true);
+    }
+  }
+
+  document.getElementById('lastUpdate').textContent = 'son güncelleme: ' + new Date().toLocaleTimeString('tr-TR');
+  btn.textContent = 'Fiyatları Güncelle'; btn.disabled = false;
+  saveData(); render();
+}
+
+function fmtPrice(s){
+  if(s.loading) return 'yükleniyor…';
+  if(s.fetchError && s.lastPrice==null) return 'veri alınamadı';
+  if(s.lastPrice==null) return '—';
+  return s.lastPrice.toFixed(2);
+}
+function priceClass(s){
+  if(s.lastPrice==null || s.prevPrice==null) return '';
+  return s.lastPrice > s.prevPrice ? 'up' : s.lastPrice < s.prevPrice ? 'down' : '';
+}
+
+function renderTabs(){
+  const tabsEl = document.getElementById('tabs');
+  tabsEl.innerHTML = LISTS.map(l=>{
+    const count = data.lists[l.key].length;
+    return `<button class="tab-btn ${data.activeList===l.key?'active':''}" onclick="setActiveList('${l.key}')">
+      <span class="dot" style="background:${l.color}"></span>${l.label} <span class="count">${count}</span>
+    </button>`;
+  }).join('');
+  document.getElementById('activeListLabel').textContent = LISTS.find(l=>l.key===data.activeList).label + ' listesine ekle:';
+}
+
+function render(){
+  renderTabs();
+  const stocks = currentStocks();
+  const empty = document.getElementById('emptyState');
+  const wrap = document.getElementById('tableWrap');
+  empty.style.display = stocks.length ? 'none' : 'block';
+  wrap.style.display = stocks.length ? 'block' : 'none';
+
+  const sorted = stocks.slice().sort((a,b)=>a.symbol.localeCompare(b.symbol,'tr'));
+
+  const headCells = ['HİSSE ADI','FİYAT', ...COLS.map(c=>HEADERS[c]), 'YORUM', ''];
+  let html = `<thead><tr>${headCells.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>`;
+
+  sorted.forEach(s=>{
+    const priceCells = COLS.map(key=>{
+      const lvl = s.levels[key];
+      return `<td><input type="number" step="0.01" placeholder="—" value="${lvl.price}"
+        class="${lvl.triggered?'triggered':''}"
+        onchange="updateLevelPrice('${s.id}','${key}', this.value)"></td>`;
+    }).join('');
+
+    html += `<tr>
+      <td class="sym-cell">${s.symbol}</td>
+      <td class="price-cell ${priceClass(s)}">${fmtPrice(s)}</td>
+      ${priceCells}
+      <td><input type="text" class="note-input" placeholder="Not ekle..." value="${(s.note||'').replace(/"/g,'&quot;')}"
+        onchange="updateNote('${s.id}', this.value)"></td>
+      <td>${pendingDelete===s.id
+        ? `<button class="del-btn" onclick="confirmRemoveStock('${s.id}')" title="Onayla">✓</button><button class="del-btn" style="color:var(--muted)" onclick="cancelRemoveStock()" title="Vazgeç">✕</button>`
+        : `<button class="del-btn" onclick="removeStock('${s.id}')" title="Sil">🗑</button>`}</td>
+    </tr>`;
+  });
+  html += '</tbody>';
+  document.getElementById('grid').innerHTML = html;
+
+  const strip = document.getElementById('tickerStrip');
+  const track = document.getElementById('tickerTrack');
+  if(stocks.some(s=>s.lastPrice!=null)){
+    strip.style.display = 'block';
+    const items = sorted.filter(s=>s.lastPrice!=null)
+      .map(s=>`<span class="tick-item"><span class="sym">${s.symbol}</span><span class="${priceClass(s)}">${fmtPrice(s)}</span></span>`).join('');
+    track.innerHTML = items + items;
+  } else {
+    strip.style.display = 'none';
+  }
+}
+
+document.getElementById('addStockBtn').onclick = ()=>{
+  const input = document.getElementById('newSymbol');
+  const val = input.value; input.value='';
+  addStock(val);
+};
+document.getElementById('newSymbol').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ const val = e.target.value; e.target.value=''; addStock(val); }
+});
+document.getElementById('refreshBtn').onclick = refreshAll;
+document.getElementById('notifBtn').onclick = async ()=>{
+  if(!('Notification' in window)){ alert('Bu tarayıcı bildirimleri desteklemiyor.'); return; }
+  const perm = await Notification.requestPermission();
+  alert(perm === 'granted' ? 'Bildirimlere izin verildi.' : 'İzin verilmedi, bildirim gönderilemeyecek.');
+};
+
+loadData();
+setInterval(()=>{ if(allStocksFlat().length) refreshAll(); }, 60000);
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW kaydı başarısız', e));
+  });
+}
+</script>
+</body>
+</html>
