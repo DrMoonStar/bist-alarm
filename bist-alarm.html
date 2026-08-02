@@ -84,7 +84,7 @@
   .list-label{ font-size:12px; color:var(--muted); }
   .empty{padding:40px 10px; text-align:center; color:var(--muted); font-size:13px;}
 
-  .table-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
+  .table-wrap{ overflow:auto; border:1px solid var(--line); border-radius:10px; max-height:calc(100vh - 300px); }
   table.grid{ border-collapse:collapse; width:100%; font-family:var(--mono); font-size:12.5px; }
   table.grid th{
     position:sticky; top:0; background:var(--panel2); border-bottom:1px solid var(--line);
@@ -105,7 +105,7 @@
   }
   table.grid input[type=text].note-input:focus{ color:var(--text); border-color:var(--green); outline:none; background:var(--panel2); }
   .price-cell{ font-weight:700; }
-  .price-cell.up{ color:var(--green); } .price-cell.down{ color:var(--red); }
+  .price-cell.up{ color:#98FF98; } .price-cell.down{ color:#E30A17; }
   .del-btn{ color:var(--red); background:transparent; border:none; font-size:15px; padding:2px 6px; cursor:pointer; }
   footer{
     position:fixed; bottom:0; left:0; right:0; padding:10px 16px;
@@ -233,11 +233,13 @@ async function addStock(symbol){
   if(!symbol) return;
   const list = currentStocks();
   if(list.find(s=>s.symbol===symbol)){ alert('Bu hisse zaten bu listede.'); return; }
-  const stock = {id:uid(), symbol, lastPrice:null, prevPrice:null, loading:true, fetchError:false, note:'', levels:emptyLevels()};
+  const stock = {id:uid(), symbol, lastPrice:null, prevPrice:null, openPrice:null, loading:true, fetchError:false, note:'', levels:emptyLevels()};
   list.push(stock);
   saveData(); render();
   try{
-    stock.lastPrice = await fetchPrice(symbol);
+    const {last, open} = await fetchPrice(symbol);
+    stock.lastPrice = last;
+    stock.openPrice = open;
     stock.fetchError = false;
   }catch(e){
     console.error(`${symbol} için fiyat alınamadı`, e);
@@ -279,7 +281,7 @@ async function fetchPrice(symbol){
   if(!res.ok) throw new Error('İstek başarısız: ' + res.status);
   const d = await res.json();
   if(d?.last == null) throw new Error('Fiyat alanı okunamadı');
-  return d.last;
+  return { last: d.last, open: d.open ?? null };
 }
 
 function notify(title, body){
@@ -299,8 +301,11 @@ function checkAlarms(stock, listLabel){
     const hit = (dir==='yukarı' && stock.lastPrice >= target) || (dir==='aşağı' && stock.lastPrice <= target);
     if(hit){
       lvl.triggered = true;
-      const noteText = stock.note ? ` - ${stock.note}` : '';
-      notify(`${stock.symbol} · ${HEADERS[key]} · ${listLabel}`, `FİYAT:${target}${noteText}`);
+      const noteText = stock.note ? `\n📝 ${stock.note}` : '';
+      notify(
+        `${stock.symbol} · ${listLabel}`,
+        `FİYAT: ${stock.lastPrice.toFixed(2)}  |  ${HEADERS[key]} (${target})${noteText}`
+      );
     }
   });
 }
@@ -320,10 +325,11 @@ async function refreshAll(){
 
   for(const symbol of Object.keys(bySymbol)){
     try{
-      const price = await fetchPrice(symbol);
+      const {last, open} = await fetchPrice(symbol);
       bySymbol[symbol].forEach(({stock, listLabel})=>{
         stock.prevPrice = stock.lastPrice;
-        stock.lastPrice = price;
+        stock.lastPrice = last;
+        stock.openPrice = open;
         stock.fetchError = false;
         checkAlarms(stock, listLabel);
       });
@@ -345,8 +351,8 @@ function fmtPrice(s){
   return s.lastPrice.toFixed(2);
 }
 function priceClass(s){
-  if(s.lastPrice==null || s.prevPrice==null) return '';
-  return s.lastPrice > s.prevPrice ? 'up' : s.lastPrice < s.prevPrice ? 'down' : '';
+  if(s.lastPrice==null || s.openPrice==null) return '';
+  return s.lastPrice >= s.openPrice ? 'up' : 'down';
 }
 
 function renderTabs(){
