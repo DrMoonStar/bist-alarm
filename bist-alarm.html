@@ -84,11 +84,12 @@
   .list-label{ font-size:12px; color:var(--muted); }
   .empty{padding:40px 10px; text-align:center; color:var(--muted); font-size:13px;}
 
-  .table-wrap{ overflow:auto; border:1px solid var(--line); border-radius:10px; max-height:calc(100vh - 300px); }
+  .table-wrap{ overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
   table.grid{ border-collapse:collapse; width:100%; font-family:var(--mono); font-size:12.5px; }
   table.grid th{
-    position:sticky; top:0; background:var(--panel2); border-bottom:1px solid var(--line);
+    position:sticky; top:var(--sticky-top, 0px); background:var(--panel2); border-bottom:1px solid var(--line);
     padding:9px 8px; text-align:left; color:var(--muted); font-size:10.5px; letter-spacing:.04em; white-space:nowrap;
+    z-index:15;
   }
   table.grid td{ padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
   table.grid tr:last-child td{ border-bottom:none; }
@@ -281,12 +282,27 @@ async function fetchPrice(symbol){
   if(!res.ok) throw new Error('İstek başarısız: ' + res.status);
   const d = await res.json();
   if(d?.last == null) throw new Error('Fiyat alanı okunamadı');
-  return { last: d.last, open: d.open ?? null };
+  return { last: Number(d.last), open: d.open != null ? Number(d.open) : null };
 }
 
-function notify(title, body){
-  if('Notification' in window && Notification.permission === 'granted'){
-    new Notification(title, {body});
+async function notify(title, body){
+  if(!('Notification' in window)) return;
+  if(Notification.permission !== 'granted') return;
+  try{
+    if('serviceWorker' in navigator){
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(title, {
+        body,
+        icon: 'icon-192.png',
+        badge: 'icon-192.png',
+        vibrate: [200, 100, 200],
+        tag: title + '-' + Date.now()
+      });
+    } else {
+      new Notification(title, {body});
+    }
+  }catch(e){
+    console.error('Bildirim gönderilemedi', e);
   }
 }
 
@@ -351,8 +367,10 @@ function fmtPrice(s){
   return s.lastPrice.toFixed(2);
 }
 function priceClass(s){
-  if(s.lastPrice==null || s.openPrice==null) return '';
-  return s.lastPrice >= s.openPrice ? 'up' : 'down';
+  const last = Number(s.lastPrice);
+  const open = Number(s.openPrice);
+  if(!isFinite(last) || !isFinite(open)) return '';
+  return last >= open ? 'up' : 'down';
 }
 
 function renderTabs(){
@@ -430,6 +448,20 @@ document.getElementById('notifBtn').onclick = async ()=>{
 
 loadData();
 setInterval(()=>{ if(allStocksFlat().length) refreshAll(); }, 60000);
+
+// Tablo başlığının, üstteki sabit header'ın hemen altına yapışması için
+// header'ın gerçek (render edilmiş) yüksekliğini ölçüp CSS değişkenine yazıyoruz.
+// vh birimine güvenmiyoruz çünkü mobil/APK ortamlarında tutarsız davranabiliyor.
+const headerEl = document.querySelector('header');
+function updateStickyOffset(){
+  document.documentElement.style.setProperty('--sticky-top', headerEl.offsetHeight + 'px');
+}
+updateStickyOffset();
+window.addEventListener('resize', updateStickyOffset);
+window.addEventListener('orientationchange', updateStickyOffset);
+if('ResizeObserver' in window){
+  new ResizeObserver(updateStickyOffset).observe(headerEl);
+}
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
