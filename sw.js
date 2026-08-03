@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bist-alarm-v1';
+const CACHE_NAME = 'bist-alarm-v2';
 const ASSETS = ['./bist-alarm.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -18,18 +18,18 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Sadece kendi dosyalarımızı önbellekten sun; API isteklerine dokunma (canlı fiyat için ağa gitsin)
+  // Sadece kendi dosyalarımızı önbellekle; API isteklerine dokunma (canlı fiyat için ağa gitsin)
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
+  // ÖNCE AĞ, olmazsa önbellek: böylece güncellemeler her zaman en güncel halini gösterir,
+  // internet yoksa yine de eski (önbellekteki) sürüm açılır.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).then((res) => {
-        const resClone = res.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
-        return res;
-      }).catch(() => cached);
-    })
+    fetch(event.request).then((res) => {
+      const resClone = res.clone();
+      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, resClone));
+      return res;
+    }).catch(() => caches.match(event.request))
   );
 });
