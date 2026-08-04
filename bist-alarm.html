@@ -12,6 +12,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="BIST Alarm">
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal) {
+    await OneSignal.init({ appId: "33300b69-c674-4bfb-85ff-d78e2999cb62" });
+  });
+</script>
 <style>
   :root{
     --bg:#0B0E11;
@@ -151,6 +158,27 @@
 
 <script>
 const COLS = ['stop','alarm1','alarm2','direnc1','direnc2','hedef1','hedef2','satis'];
+const WORKER_URL = 'bistalarm.ayyildiz61.workers.dev'; // örn: https://bist-alarm-worker.SENIN-ADIN.workers.dev
+const SHARED_SECRET = 'A1pxvPPJLRmTrqIfgUvKhJxynForVQfA';
+
+async function syncToCloud(){
+  try{
+    await fetch(WORKER_URL + '/sync', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-Auth': SHARED_SECRET},
+      body: JSON.stringify(data)
+    });
+  }catch(e){ console.warn('Buluta senkronizasyon başarısız', e); }
+}
+
+async function pullFromCloud(){
+  try{
+    const res = await fetch(WORKER_URL + '/data', {headers: {'X-Auth': SHARED_SECRET}});
+    const cloud = await res.json();
+    if(cloud && cloud.lists){ return cloud; }
+  }catch(e){ console.warn('Buluttan veri çekilemedi', e); }
+  return null;
+}
 const HEADERS = {stop:'STOP', alarm1:'ALARM1', alarm2:'ALARM2', direnc1:'DİRENÇ1', direnc2:'DİRENÇ2', hedef1:'HEDEF1', hedef2:'HEDEF2', satis:'SATIŞ'};
 const DIRECTIONS = {stop:'aşağı', alarm1:'yukarı', alarm2:'yukarı', direnc1:'yukarı', direnc2:'yukarı', hedef1:'yukarı', hedef2:'yukarı', satis:'yukarı'};
 
@@ -211,11 +239,22 @@ async function loadData(){
     }
   }catch(e){ /* varsayılan boş yapı kalır */ }
   render();
+
+  // Uygulama kapalıyken worker'ın arka planda güncellediği (tetiklenen alarmlar,
+  // güncel fiyatlar) veriyi de çekip üzerine yazalım.
+  const cloud = await pullFromCloud();
+  if(cloud){
+    data.activeList = cloud.activeList || data.activeList;
+    LISTS.forEach(l => { if(cloud.lists?.[l.key]) data.lists[l.key] = cloud.lists[l.key]; });
+    localStorage.setItem('stocks-v3', JSON.stringify(data));
+    render();
+  }
 }
 
 async function saveData(){
   try{ localStorage.setItem('stocks-v3', JSON.stringify(data)); }
   catch(e){ console.error('Kayıt başarısız', e); }
+  syncToCloud();
 }
 
 function currentStocks(){ return data.lists[data.activeList]; }
@@ -443,7 +482,12 @@ document.getElementById('refreshBtn').onclick = refreshAll;
 document.getElementById('notifBtn').onclick = async ()=>{
   if(!('Notification' in window)){ alert('Bu tarayıcı bildirimleri desteklemiyor.'); return; }
   const perm = await Notification.requestPermission();
-  alert(perm === 'granted' ? 'Bildirimlere izin verildi.' : 'İzin verilmedi, bildirim gönderilemeyecek.');
+  if(perm === 'granted' && window.OneSignalDeferred){
+    OneSignalDeferred.push(async function(OneSignal){
+      try{ await OneSignal.User.PushSubscription.optIn(); }catch(e){ console.warn('OneSignal opt-in hatası', e); }
+    });
+  }
+  alert(perm === 'granted' ? 'Bildirimlere izin verildi. Artık uygulama kapalıyken de alarm bildirimi alacaksın.' : 'İzin verilmedi, bildirim gönderilemeyecek.');
 };
 
 loadData();
