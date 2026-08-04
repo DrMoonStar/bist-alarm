@@ -168,7 +168,7 @@
 
 <script>
 const COLS = ['stop','alarm1','alarm2','direnc1','direnc2','hedef1','hedef2','satis'];
-const WORKER_URL = 'https://bistalarm.ayyildiz61.workers.dev'; // örn: https://bist-alarm-worker.SENIN-ADIN.workers.dev
+const WORKER_URL = 'https://bistalarm.ayyildiz61.workers.dev';
 const SHARED_SECRET = 'A1pxvPPJLRmTrqIfgUvKhJxynForVQfA';
 
 async function syncToCloud(){
@@ -327,11 +327,22 @@ function withTimeout(promise, ms){
 }
 
 async function fetchPrice(symbol){
-  const res = await withTimeout(fetch(`https://borsajs-showcase.web.app/api/ticker/${symbol.toUpperCase()}`), 10000);
-  if(!res.ok) throw new Error('İstek başarısız: ' + res.status);
-  const d = await res.json();
-  if(d?.last == null) throw new Error('Fiyat alanı okunamadı');
-  return { last: Number(d.last), open: d.open != null ? Number(d.open) : null };
+  const sym = symbol.toUpperCase();
+  const isLikelyCrypto = /TRY$|USDT$/.test(sym) && sym.length > 3;
+  const endpoints = isLikelyCrypto
+    ? [`https://borsajs-showcase.web.app/api/crypto/${sym}`, `https://borsajs-showcase.web.app/api/ticker/${sym}`]
+    : [`https://borsajs-showcase.web.app/api/ticker/${sym}`, `https://borsajs-showcase.web.app/api/crypto/${sym}`];
+  let lastErr;
+  for(const url of endpoints){
+    try{
+      const res = await withTimeout(fetch(url), 10000);
+      if(!res.ok){ lastErr = new Error('İstek başarısız: ' + res.status); continue; }
+      const d = await res.json();
+      if(d?.last == null){ lastErr = new Error('Fiyat alanı okunamadı'); continue; }
+      return { last: Number(d.last), open: d.open != null ? Number(d.open) : null };
+    }catch(e){ lastErr = e; console.warn('Deneme başarısız:', url, e.message); }
+  }
+  throw lastErr || new Error('Fiyat bulunamadı');
 }
 
 async function notify(title, body){
