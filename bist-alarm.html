@@ -16,8 +16,18 @@
 <script>
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({ appId: "33300b69-c674-4bfb-85ff-d78e2999cb62" });
+    await OneSignal.init({ appId: "BURAYA_ONESIGNAL_APP_ID_YAPISTIR" });
+    const uid = getOrCreateUserId();
+    try{ await OneSignal.login(uid); }catch(e){ console.warn('OneSignal login hatası', e); }
   });
+  function getOrCreateUserId(){
+    let uid = localStorage.getItem('user-id');
+    if(!uid){
+      uid = (crypto.randomUUID ? crypto.randomUUID() : 'u-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+      localStorage.setItem('user-id', uid);
+    }
+    return uid;
+  }
 </script>
 <style>
   :root{
@@ -158,14 +168,14 @@
 
 <script>
 const COLS = ['stop','alarm1','alarm2','direnc1','direnc2','hedef1','hedef2','satis'];
-const WORKER_URL = 'bistalarm.ayyildiz61.workers.dev'; // örn: https://bist-alarm-worker.SENIN-ADIN.workers.dev
+const WORKER_URL = 'BURAYA_WORKER_ADRESIN.workers.dev'; // örn: https://bist-alarm-worker.SENIN-ADIN.workers.dev
 const SHARED_SECRET = 'A1pxvPPJLRmTrqIfgUvKhJxynForVQfA';
 
 async function syncToCloud(){
   try{
     await fetch(WORKER_URL + '/sync', {
       method: 'POST',
-      headers: {'Content-Type':'application/json', 'X-Auth': SHARED_SECRET},
+      headers: {'Content-Type':'application/json', 'X-Auth': SHARED_SECRET, 'X-User-Id': getOrCreateUserId()},
       body: JSON.stringify(data)
     });
   }catch(e){ console.warn('Buluta senkronizasyon başarısız', e); }
@@ -173,7 +183,7 @@ async function syncToCloud(){
 
 async function pullFromCloud(){
   try{
-    const res = await fetch(WORKER_URL + '/data', {headers: {'X-Auth': SHARED_SECRET}});
+    const res = await fetch(WORKER_URL + '/data', {headers: {'X-Auth': SHARED_SECRET, 'X-User-Id': getOrCreateUserId()}});
     const cloud = await res.json();
     if(cloud && cloud.lists){ return cloud; }
   }catch(e){ console.warn('Buluttan veri çekilemedi', e); }
