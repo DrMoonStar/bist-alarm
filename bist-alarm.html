@@ -16,7 +16,7 @@
 <script>
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({ appId: "BURAYA_ONESIGNAL_APP_ID_YAPISTIR" });
+    await OneSignal.init({ appId: "33300b69-c674-4bfb-85ff-d78e2999cb62" });
     const uid = getOrCreateUserId();
     try{ await OneSignal.login(uid); }catch(e){ console.warn('OneSignal login hatası', e); }
   });
@@ -168,7 +168,7 @@
 
 <script>
 const COLS = ['stop','alarm1','alarm2','direnc1','direnc2','hedef1','hedef2','satis'];
-const WORKER_URL = 'BURAYA_WORKER_ADRESIN.workers.dev'; // örn: https://bist-alarm-worker.SENIN-ADIN.workers.dev
+const WORKER_URL = 'https://bistalarm.ayyildiz61.workers.dev'; // örn: https://bist-alarm-worker.SENIN-ADIN.workers.dev
 const SHARED_SECRET = 'A1pxvPPJLRmTrqIfgUvKhJxynForVQfA';
 
 async function syncToCloud(){
