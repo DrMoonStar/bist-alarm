@@ -35,7 +35,7 @@
   }
   header{
     padding:18px 16px 14px; border-bottom:1px solid var(--line);
-    position:sticky; top:0; background:var(--bg); z-index:20;
+    position:fixed; top:0; left:0; right:0; width:100%; background:var(--bg); z-index:20;
   }
   .brand{font-family:var(--mono); font-size:13px; letter-spacing:.12em; color:var(--muted); text-transform:uppercase;}
   h1{font-size:20px; margin:4px 0 0; font-weight:700;}
@@ -454,7 +454,9 @@ setInterval(()=>{ if(allStocksFlat().length) refreshAll(); }, 60000);
 // vh birimine güvenmiyoruz çünkü mobil/APK ortamlarında tutarsız davranabiliyor.
 const headerEl = document.querySelector('header');
 function updateStickyOffset(){
-  document.documentElement.style.setProperty('--sticky-top', headerEl.offsetHeight + 'px');
+  const h = headerEl.offsetHeight;
+  document.documentElement.style.setProperty('--sticky-top', h + 'px');
+  document.body.style.paddingTop = h + 'px';
 }
 updateStickyOffset();
 window.addEventListener('resize', updateStickyOffset);
