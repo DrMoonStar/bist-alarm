@@ -104,10 +104,10 @@
   .table-wrap{ overflow-x:auto; overflow-y:visible; border:1px solid var(--line); border-radius:10px; }
   table.grid{ border-collapse:separate; border-spacing:0; width:100%; font-family:var(--mono); font-size:12.5px; }
   table.grid th{
-    position:sticky; top:var(--sticky-top, 0px); background:var(--panel2); border-bottom:1px solid var(--line);
+    background:var(--panel2); border-bottom:1px solid var(--line);
     padding:9px 8px; text-align:left; color:var(--muted); font-size:10.5px; letter-spacing:.04em; white-space:nowrap;
-    z-index:15;
   }
+  table.grid input[type=number]::placeholder{ color:#3D4552; font-weight:400; }
   table.grid td{ padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
   table.grid tr:last-child td{ border-bottom:none; }
   table.grid td.sym-cell{ font-weight:700; font-family:var(--sans); position:sticky; left:0; background:var(--bg); }
@@ -460,7 +460,7 @@ function render(){
   sorted.forEach(s=>{
     const priceCells = COLS.map(key=>{
       const lvl = s.levels[key];
-      return `<td><input type="number" step="0.01" placeholder="—" value="${lvl.price}"
+      return `<td><input type="number" step="0.01" placeholder="${HEADERS[key]}" value="${lvl.price}"
         class="${lvl.triggered?'triggered':''}"
         onchange="updateLevelPrice('${s.id}','${key}', this.value)"></td>`;
     }).join('');
