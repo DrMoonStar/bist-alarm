@@ -437,7 +437,8 @@ async function refreshAll(){
     });
   });
 
-  for(const symbol of Object.keys(bySymbol)){
+  const symbols = Object.keys(bySymbol);
+  await Promise.all(symbols.map(async (symbol)=>{
     try{
       const {last, open} = await fetchPrice(symbol);
       bySymbol[symbol].forEach(({stock, listLabel})=>{
@@ -451,7 +452,7 @@ async function refreshAll(){
       console.error(`${symbol} için fiyat alınamadı`, e);
       bySymbol[symbol].forEach(({stock})=> stock.fetchError = true);
     }
-  }
+  }));
 
   document.getElementById('lastUpdate').textContent = 'son güncelleme: ' + new Date().toLocaleTimeString('tr-TR');
   btn.textContent = 'Fiyatları Güncelle'; btn.disabled = false;
@@ -556,7 +557,15 @@ document.getElementById('notifBtn').onclick = async ()=>{
 };
 
 loadData();
-setInterval(()=>{ if(allStocksFlat().length) refreshAll(); }, 60000);
+function scheduleNextRefresh(){
+  setTimeout(async ()=>{
+    if(allStocksFlat().length){
+      await refreshAll();
+    }
+    scheduleNextRefresh();
+  }, 60000);
+}
+scheduleNextRefresh();
 
 // Tablo başlığının, üstteki sabit header'ın hemen altına yapışması için
 // header'ın gerçek (render edilmiş) yüksekliğini ölçüp CSS değişkenine yazıyoruz.
