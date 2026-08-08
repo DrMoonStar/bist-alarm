@@ -192,16 +192,17 @@ async function pullFromCloud(){
 const HEADERS = {stop:'STOP', alarm1:'ALARM1', alarm2:'ALARM2', direnc1:'DİRENÇ1', direnc2:'DİRENÇ2', hedef1:'HEDEF1', hedef2:'HEDEF2', satis:'SATIŞ'};
 const DIRECTIONS = {stop:'aşağı', alarm1:'yukarı', alarm2:'yukarı', direnc1:'yukarı', direnc2:'yukarı', hedef1:'yukarı', hedef2:'yukarı', satis:'yukarı'};
 
-const LISTS = [
+const DEFAULT_LISTS = [
   {key:'kirmizi', label:'KIRMIZI', color:'var(--red)'},
   {key:'yesil',   label:'YEŞİL',   color:'var(--green)'},
   {key:'sari',    label:'SARI',    color:'var(--amber)'},
   {key:'mavi',    label:'MAVİ',    color:'var(--blue)'},
   {key:'takip',   label:'TAKİP',   color:'var(--muted)'}
 ];
+const PALETTE = ['var(--red)','var(--green)','var(--amber)','var(--blue)','var(--muted)','#B084F5','#F5789A','#4FD1C5'];
 
-let data = { activeList: 'takip', lists: {} };
-LISTS.forEach(l => data.lists[l.key] = []);
+let data = { activeList: 'takip', listMeta: DEFAULT_LISTS.map(l=>({...l})), lists: {} };
+data.listMeta.forEach(l => data.lists[l.key] = []);
 
 function uid(){ return Math.random().toString(36).slice(2,9); }
 
@@ -235,7 +236,9 @@ async function loadData(){
     if(raw){
       const parsed = JSON.parse(raw);
       data.activeList = parsed.activeList || 'takip';
-      LISTS.forEach(l => data.lists[l.key] = parsed.lists?.[l.key] || []);
+      data.listMeta = parsed.listMeta && parsed.listMeta.length ? parsed.listMeta : DEFAULT_LISTS.map(l=>({...l}));
+      data.lists = {};
+      data.listMeta.forEach(l => data.lists[l.key] = parsed.lists?.[l.key] || []);
     } else {
       // eski sürümlerden göç
       const v2 = localStorage.getItem('stocks-v2');
@@ -255,7 +258,8 @@ async function loadData(){
   const cloud = await pullFromCloud();
   if(cloud){
     data.activeList = cloud.activeList || data.activeList;
-    LISTS.forEach(l => { if(cloud.lists?.[l.key]) data.lists[l.key] = cloud.lists[l.key]; });
+    if(cloud.listMeta && cloud.listMeta.length) data.listMeta = cloud.listMeta;
+    data.listMeta.forEach(l => { if(cloud.lists?.[l.key]) data.lists[l.key] = cloud.lists[l.key]; if(!data.lists[l.key]) data.lists[l.key]=[]; });
     localStorage.setItem('stocks-v3', JSON.stringify(data));
     render();
   }
@@ -268,11 +272,45 @@ async function saveData(){
 }
 
 function currentStocks(){ return data.lists[data.activeList]; }
-function allStocksFlat(){ return LISTS.flatMap(l => data.lists[l.key]); }
+function allStocksFlat(){ return data.listMeta.flatMap(l => data.lists[l.key] || []); }
 
 function setActiveList(key){
   data.activeList = key;
   pendingDelete = null;
+  saveData(); render();
+}
+
+function addNewList(){
+  const name = prompt('Yeni liste adı:');
+  if(!name || !name.trim()) return;
+  const key = uid();
+  const color = PALETTE[data.listMeta.length % PALETTE.length];
+  data.listMeta.push({key, label: name.trim().toUpperCase(), color});
+  data.lists[key] = [];
+  data.activeList = key;
+  saveData(); render();
+}
+
+function renameList(key){
+  const meta = data.listMeta.find(l=>l.key===key);
+  if(!meta) return;
+  const name = prompt('Yeni isim:', meta.label);
+  if(!name || !name.trim()) return;
+  meta.label = name.trim().toUpperCase();
+  saveData(); render();
+}
+
+function deleteList(key){
+  if(data.listMeta.length <= 1){ alert('En az bir liste kalmalı.'); return; }
+  const meta = data.listMeta.find(l=>l.key===key);
+  const count = (data.lists[key]||[]).length;
+  const msg = count > 0
+    ? `"${meta.label}" listesi ve içindeki ${count} hisse silinecek. Emin misin?`
+    : `"${meta.label}" listesi silinecek. Emin misin?`;
+  if(!confirm(msg)) return;
+  data.listMeta = data.listMeta.filter(l=>l.key!==key);
+  delete data.lists[key];
+  if(data.activeList === key){ data.activeList = data.listMeta[0].key; }
   saveData(); render();
 }
 
@@ -392,8 +430,8 @@ async function refreshAll(){
 
   // aynı sembolü birden fazla listede tekrar tekrar çekmemek için tekilleştir
   const bySymbol = {};
-  LISTS.forEach(l=>{
-    data.lists[l.key].forEach(s=>{
+  data.listMeta.forEach(l=>{
+    (data.lists[l.key]||[]).forEach(s=>{
       if(!bySymbol[s.symbol]) bySymbol[s.symbol] = [];
       bySymbol[s.symbol].push({stock:s, listLabel:l.label});
     });
@@ -435,13 +473,19 @@ function priceClass(s){
 
 function renderTabs(){
   const tabsEl = document.getElementById('tabs');
-  tabsEl.innerHTML = LISTS.map(l=>{
-    const count = data.lists[l.key].length;
-    return `<button class="tab-btn ${data.activeList===l.key?'active':''}" onclick="setActiveList('${l.key}')">
+  tabsEl.innerHTML = data.listMeta.map(l=>{
+    const count = (data.lists[l.key]||[]).length;
+    const isActive = data.activeList===l.key;
+    return `<button class="tab-btn ${isActive?'active':''}" onclick="setActiveList('${l.key}')">
       <span class="dot" style="background:${l.color}"></span>${l.label} <span class="count">${count}</span>
+      ${isActive ? `
+        <span onclick="event.stopPropagation(); renameList('${l.key}')" title="Yeniden adlandır" style="margin-left:4px; opacity:.7;">✎</span>
+        <span onclick="event.stopPropagation(); deleteList('${l.key}')" title="Listeyi sil" style="margin-left:2px; opacity:.7; color:var(--red);">✕</span>
+      ` : ''}
     </button>`;
-  }).join('');
-  document.getElementById('activeListLabel').textContent = LISTS.find(l=>l.key===data.activeList).label + ' listesine ekle:';
+  }).join('') + `<button class="tab-btn" onclick="addNewList()" style="border-style:dashed;">+ Yeni Liste</button>`;
+  const activeMeta = data.listMeta.find(l=>l.key===data.activeList) || data.listMeta[0];
+  document.getElementById('activeListLabel').textContent = activeMeta.label + ' listesine ekle:';
 }
 
 function render(){
